@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import dayjs from 'dayjs'
 import { Bookmark, BookmarkCheck, CalendarDays, Database, Upload, Users } from 'lucide-vue-next'
-import { db, type PostRecord } from '@/db'
+import { db, type PostRecord, type UserRecord } from '@/db'
 import { handleImport } from '@/utils/import'
 import { getCdnUrl, normalizeImages } from '@/utils/image'
 import { emitter } from '@/composables'
@@ -22,6 +22,10 @@ const collectionMemos = ref<PostRecord[]>([])
 const collectionIds = ref<Set<string>>(new Set())
 const stats = ref({ users: 0, posts: 0 })
 const preview = ref<PreviewState>({ open: false, images: [], index: 0 })
+const noImageMode = ref(false)
+const userMode = ref<'all' | 'single'>('all')
+const selectedUserId = ref('')
+const users = ref<UserRecord[]>([])
 
 const todayLabel = computed(() => dayjs().format('MM月DD日'))
 
@@ -30,16 +34,46 @@ async function refreshStats() {
   stats.value = { users, posts }
 }
 
+async function fetchUsers() {
+  const list = await db.users.toArray()
+  users.value = list
+  if (userMode.value === 'single') {
+    const hasSelected = list.some((item) => item.uid === selectedUserId.value)
+    if (!hasSelected) {
+      selectedUserId.value = list[0]?.uid || ''
+    }
+  }
+}
+
 async function fetchTodayMemos() {
   const today = dayjs()
   const todayKey = today.format('MM-DD')
   const allPosts = await db.posts.toArray()
+  const filterUserId = userMode.value === 'single' ? selectedUserId.value : ''
   memos.value = allPosts
     .filter((post) => {
       const date = dayjs(post.createdAt)
-      return date.isValid() && date.format('MM-DD') === todayKey && date.year() < today.year()
+      if (!date.isValid()) {
+        return false
+      }
+      if (date.format('MM-DD') !== todayKey || date.year() >= today.year()) {
+        return false
+      }
+      if (filterUserId && post.userId !== filterUserId) {
+        return false
+      }
+      return true
     })
-    .sort((a, b) => dayjs(b.createdAt).valueOf() - dayjs(a.createdAt).valueOf())
+    .sort((a, b) => {
+      const timeA = dayjs(a.createdAt)
+      const timeB = dayjs(b.createdAt)
+      const keyA = timeA.format('HH:mm:ss')
+      const keyB = timeB.format('HH:mm:ss')
+      if (keyA !== keyB) {
+        return keyA.localeCompare(keyB)
+      }
+      return timeA.year() - timeB.year()
+    })
 }
 
 async function fetchCollections() {
@@ -55,7 +89,7 @@ async function fetchCollections() {
 }
 
 async function refreshAll() {
-  await Promise.all([refreshStats(), fetchTodayMemos(), fetchCollections()])
+  await Promise.all([refreshStats(), fetchUsers(), fetchTodayMemos(), fetchCollections()])
 }
 
 async function handleFileChange(event: Event) {
@@ -84,6 +118,9 @@ async function handleFileChange(event: Event) {
   }
 
   await refreshAll()
+  if (userMode.value === 'single' && !selectedUserId.value) {
+    selectedUserId.value = users.value[0]?.uid || ''
+  }
   if (!hadError) {
     importStatus.value = `已导入 ${totalUsers} 个用户，${totalPosts} 条微博。`
   }
@@ -107,6 +144,9 @@ function isCollected(postId: string) {
 }
 
 function openPreview(images: string[], index: number) {
+  if (noImageMode.value) {
+    return
+  }
   preview.value = {
     open: true,
     images,
@@ -133,9 +173,18 @@ function prevPreview() {
   }
 }
 
-function formatDate(date: string) {
+function formatDateTime(date: string) {
   const parsed = dayjs(date)
-  return parsed.isValid() ? parsed.format('YYYY年MM月DD日') : date
+  return parsed.isValid() ? parsed.format('YYYY年MM月DD日 HH:mm') : date
+}
+
+function yearsAgoLabel(date: string) {
+  const parsed = dayjs(date)
+  if (!parsed.isValid()) {
+    return ''
+  }
+  const years = Math.max(0, dayjs().year() - parsed.year())
+  return `${years}年前`
 }
 
 function getRetweet(post: PostRecord) {
@@ -165,6 +214,8 @@ function handleOpenPreview(payload: { imgs: string[]; index: number }) {
 }
 
 onMounted(async () => {
+  const storedNoImage = localStorage.getItem('weibo-memos-lite:no-image')
+  noImageMode.value = storedNoImage === '1'
   await refreshAll()
   emitter.on('open-image-preview', handleOpenPreview)
 })
@@ -172,16 +223,46 @@ onMounted(async () => {
 onUnmounted(() => {
   emitter.off('open-image-preview', handleOpenPreview)
 })
+
+watch(noImageMode, (enabled) => {
+  if (enabled) {
+    closePreview()
+  }
+  localStorage.setItem('weibo-memos-lite:no-image', enabled ? '1' : '0')
+})
+
+watch([userMode, selectedUserId], async () => {
+  await fetchTodayMemos()
+})
 </script>
 
 <template>
   <div class="app">
     <header class="hero">
       <div class="hero-content">
+        <div class="top-controls">
+          <label class="toggle">
+            <input v-model="noImageMode" type="checkbox">
+            <span class="toggle-track"></span>
+            <span>无图模式</span>
+          </label>
+          <div class="filter-group">
+            <select v-model="userMode" class="select">
+              <option value="all">全部用户</option>
+              <option value="single">单用户</option>
+            </select>
+            <select v-if="userMode === 'single'" v-model="selectedUserId" class="select">
+              <option value="" disabled>选择用户</option>
+              <option v-for="user in users" :key="user.uid" :value="user.uid">
+                {{ user.name }}
+              </option>
+            </select>
+          </div>
+        </div>
         <p class="eyebrow">微博回忆轻量版</p>
-        <h1>今天的这一天，翻出所有回忆。</h1>
+        <h1>那年今日，见字如面。</h1>
         <p class="hero-subtitle">
-          导入微博存档，找出历年今天的每一条动态。
+          从本地存档中，打捞历年今日的每一条动态。
         </p>
         <div class="hero-actions">
           <label class="upload-button">
@@ -246,16 +327,6 @@ onUnmounted(() => {
 
       <section v-if="viewMode === 'today'" class="memo-list">
         <article v-for="post in memos" :key="post.id" class="memo-card">
-          <div v-if="getPostUrl(post)" class="memo-top">
-            <a
-              class="memo-link"
-              :href="getPostUrl(post)"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              打开原微博
-            </a>
-          </div>
           <header class="memo-header">
             <div class="memo-user">
               <img
@@ -265,14 +336,33 @@ onUnmounted(() => {
               >
               <div>
                 <p class="memo-user-name">{{ post.userName }}</p>
-                <p class="memo-date">{{ formatDate(post.createdAt) }}</p>
+                <p class="memo-date">
+                  <span class="time-tag">{{ yearsAgoLabel(post.createdAt) }}</span>
+                  {{ formatDateTime(post.createdAt) }}
+                </p>
               </div>
+            </div>
+            <div class="memo-actions">
+              <button class="collect" @click="toggleCollection(post.id)">
+                <BookmarkCheck v-if="isCollected(post.id)" class="icon" />
+                <Bookmark v-else class="icon" />
+                <span>{{ isCollected(post.id) ? '已收藏' : '收藏' }}</span>
+              </button>
+              <a
+                v-if="getPostUrl(post)"
+                class="memo-link"
+                :href="getPostUrl(post)"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                原微博
+              </a>
             </div>
           </header>
 
-          <WeiboText class="memo-text" :text="post.text" />
+          <WeiboText class="memo-text" :text="post.text" :show-images="!noImageMode" />
 
-          <div v-if="post.imgs.length" class="memo-grid">
+          <div v-if="!noImageMode && post.imgs.length" class="memo-grid">
             <button
               v-for="(img, index) in post.imgs"
               :key="img"
@@ -288,8 +378,8 @@ onUnmounted(() => {
             <p class="retweet-title">
               转发自 {{ getRetweet(post).user?.name || getRetweet(post).user?.screen_name || '未知用户' }}
             </p>
-            <WeiboText class="memo-text" :text="getRetweet(post).text || ''" />
-            <div v-if="getRetweetImages(getRetweet(post)).length" class="memo-grid">
+            <WeiboText class="memo-text" :text="getRetweet(post).text || ''" :show-images="!noImageMode" />
+            <div v-if="!noImageMode && getRetweetImages(getRetweet(post)).length" class="memo-grid">
               <button
                 v-for="(img, index) in getRetweetImages(getRetweet(post))"
                 :key="img"
@@ -302,13 +392,6 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <div class="memo-footer">
-            <button class="collect" @click="toggleCollection(post.id)">
-              <BookmarkCheck v-if="isCollected(post.id)" class="icon" />
-              <Bookmark v-else class="icon" />
-              <span>{{ isCollected(post.id) ? '已收藏' : '收藏' }}</span>
-            </button>
-          </div>
         </article>
 
         <div v-if="memos.length === 0" class="empty-state">
@@ -318,16 +401,6 @@ onUnmounted(() => {
 
       <section v-else class="memo-list">
         <article v-for="post in collectionMemos" :key="post.id" class="memo-card">
-          <div v-if="getPostUrl(post)" class="memo-top">
-            <a
-              class="memo-link"
-              :href="getPostUrl(post)"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              打开原微博
-            </a>
-          </div>
           <header class="memo-header">
             <div class="memo-user">
               <img
@@ -337,14 +410,32 @@ onUnmounted(() => {
               >
               <div>
                 <p class="memo-user-name">{{ post.userName }}</p>
-                <p class="memo-date">{{ formatDate(post.createdAt) }}</p>
+                <p class="memo-date">
+                  <span class="time-tag">{{ yearsAgoLabel(post.createdAt) }}</span>
+                  {{ formatDateTime(post.createdAt) }}
+                </p>
               </div>
+            </div>
+            <div class="memo-actions">
+              <button class="collect" @click="toggleCollection(post.id)">
+                <BookmarkCheck class="icon" />
+                <span>已收藏</span>
+              </button>
+              <a
+                v-if="getPostUrl(post)"
+                class="memo-link"
+                :href="getPostUrl(post)"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                原微博
+              </a>
             </div>
           </header>
 
-          <WeiboText class="memo-text" :text="post.text" />
+          <WeiboText class="memo-text" :text="post.text" :show-images="!noImageMode" />
 
-          <div v-if="post.imgs.length" class="memo-grid">
+          <div v-if="!noImageMode && post.imgs.length" class="memo-grid">
             <button
               v-for="(img, index) in post.imgs"
               :key="img"
@@ -356,12 +447,6 @@ onUnmounted(() => {
             </button>
           </div>
 
-          <div class="memo-footer">
-            <button class="collect" @click="toggleCollection(post.id)">
-              <BookmarkCheck class="icon" />
-              <span>已收藏</span>
-            </button>
-          </div>
         </article>
 
         <div v-if="collectionMemos.length === 0" class="empty-state">

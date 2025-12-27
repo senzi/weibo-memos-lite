@@ -298,6 +298,10 @@ export const WeiboText = defineComponent({
       type: String,
       required: true,
     },
+    showImages: {
+      type: Boolean,
+      default: true,
+    },
     class: {
       type: String,
       default: 'mb-2',
@@ -308,6 +312,9 @@ export const WeiboText = defineComponent({
       .filter((segment) => {
         if (segment.type === 'text') {
           return segment.content !== ' '
+        }
+        if (!props.showImages && segment.type === 'image') {
+          return false
         }
         return true
       })
