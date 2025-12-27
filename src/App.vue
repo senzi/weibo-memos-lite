@@ -23,7 +23,7 @@ const collectionIds = ref<Set<string>>(new Set())
 const stats = ref({ users: 0, posts: 0 })
 const preview = ref<PreviewState>({ open: false, images: [], index: 0 })
 
-const todayLabel = computed(() => dayjs().format('MMMM DD'))
+const todayLabel = computed(() => dayjs().format('MM月DD日'))
 
 async function refreshStats() {
   const [users, posts] = await Promise.all([db.users.count(), db.posts.count()])
@@ -79,13 +79,13 @@ async function handleFileChange(event: Event) {
     }
     catch (error) {
       hadError = true
-      importStatus.value = `Failed to import ${file.name}. Please check the JSON format.`
+      importStatus.value = `导入失败：${file.name}，请检查 JSON 格式。`
     }
   }
 
   await refreshAll()
   if (!hadError) {
-    importStatus.value = `Imported ${totalUsers} user(s) and ${totalPosts} post(s).`
+    importStatus.value = `已导入 ${totalUsers} 个用户，${totalPosts} 条微博。`
   }
   isImporting.value = false
   input.value = ''
@@ -135,12 +135,22 @@ function prevPreview() {
 
 function formatDate(date: string) {
   const parsed = dayjs(date)
-  return parsed.isValid() ? parsed.format('YYYY MMM DD') : date
+  return parsed.isValid() ? parsed.format('YYYY年MM月DD日') : date
 }
 
 function getRetweet(post: PostRecord) {
   const raw = post.raw as Record<string, any>
   return raw?.retweet || raw?.retweeted_status || null
+}
+
+function getPostUrl(post: PostRecord) {
+  const raw = post.raw as Record<string, any>
+  const uid = post.userId || raw?.user?.idstr || raw?.user?.id || ''
+  const mblogid = raw?.mblogid || raw?.mblogId || ''
+  if (!uid || !mblogid) {
+    return ''
+  }
+  return `https://weibo.com/${uid}/${mblogid}`
 }
 
 function getRetweetImages(retweet: Record<string, any> | null) {
@@ -168,41 +178,41 @@ onUnmounted(() => {
   <div class="app">
     <header class="hero">
       <div class="hero-content">
-        <p class="eyebrow">Weibo Memos Lite</p>
-        <h1>On this day, across every timeline.</h1>
+        <p class="eyebrow">微博回忆轻量版</p>
+        <h1>今天的这一天，翻出所有回忆。</h1>
         <p class="hero-subtitle">
-          Import your Weibo archives and surface every shared memory that happened today.
+          导入微博存档，找出历年今天的每一条动态。
         </p>
         <div class="hero-actions">
           <label class="upload-button">
             <input type="file" accept="application/json" multiple @change="handleFileChange">
             <Upload class="icon" />
-            <span>{{ isImporting ? 'Importing...' : 'Import JSON' }}</span>
+            <span>{{ isImporting ? '正在导入...' : '导入 JSON' }}</span>
           </label>
-          <p class="hint">Data stays in your browser via IndexedDB.</p>
+          <p class="hint">数据仅保存在本地浏览器（IndexedDB）。</p>
         </div>
       </div>
       <div class="hero-panel">
         <div class="panel">
           <div class="panel-header">
             <CalendarDays class="icon" />
-            <span>Today</span>
+            <span>今天</span>
           </div>
           <div class="panel-value">{{ todayLabel }}</div>
-          <p class="panel-meta">Showing posts from past years on this date.</p>
+          <p class="panel-meta">展示历年今天发布的微博。</p>
         </div>
         <div class="panel-grid">
           <div class="panel mini">
             <Users class="icon muted" />
             <div>
-              <p class="panel-label">Users</p>
+              <p class="panel-label">用户数</p>
               <p class="panel-value">{{ stats.users }}</p>
             </div>
           </div>
           <div class="panel mini">
             <Database class="icon muted" />
             <div>
-              <p class="panel-label">Posts</p>
+              <p class="panel-label">微博数</p>
               <p class="panel-value">{{ stats.posts }}</p>
             </div>
           </div>
@@ -219,23 +229,33 @@ onUnmounted(() => {
             :class="{ active: viewMode === 'today' }"
             @click="viewMode = 'today'"
           >
-            Today
+            今日回忆
           </button>
           <button
             class="tab"
             :class="{ active: viewMode === 'collections' }"
             @click="viewMode = 'collections'"
           >
-            Collections
+            已收藏
           </button>
         </div>
         <p class="content-meta">
-          {{ viewMode === 'today' ? memos.length : collectionMemos.length }} memo(s)
+          共 {{ viewMode === 'today' ? memos.length : collectionMemos.length }} 条
         </p>
       </div>
 
       <section v-if="viewMode === 'today'" class="memo-list">
         <article v-for="post in memos" :key="post.id" class="memo-card">
+          <div v-if="getPostUrl(post)" class="memo-top">
+            <a
+              class="memo-link"
+              :href="getPostUrl(post)"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              打开原微博
+            </a>
+          </div>
           <header class="memo-header">
             <div class="memo-user">
               <img
@@ -248,11 +268,6 @@ onUnmounted(() => {
                 <p class="memo-date">{{ formatDate(post.createdAt) }}</p>
               </div>
             </div>
-            <button class="collect" @click="toggleCollection(post.id)">
-              <BookmarkCheck v-if="isCollected(post.id)" class="icon" />
-              <Bookmark v-else class="icon" />
-              <span>{{ isCollected(post.id) ? 'Collected' : 'Collect' }}</span>
-            </button>
           </header>
 
           <WeiboText class="memo-text" :text="post.text" />
@@ -271,7 +286,7 @@ onUnmounted(() => {
 
           <div v-if="getRetweet(post)" class="memo-retweet">
             <p class="retweet-title">
-              Repost from {{ getRetweet(post).user?.name || getRetweet(post).user?.screen_name || 'Unknown' }}
+              转发自 {{ getRetweet(post).user?.name || getRetweet(post).user?.screen_name || '未知用户' }}
             </p>
             <WeiboText class="memo-text" :text="getRetweet(post).text || ''" />
             <div v-if="getRetweetImages(getRetweet(post)).length" class="memo-grid">
@@ -286,15 +301,33 @@ onUnmounted(() => {
               </button>
             </div>
           </div>
+
+          <div class="memo-footer">
+            <button class="collect" @click="toggleCollection(post.id)">
+              <BookmarkCheck v-if="isCollected(post.id)" class="icon" />
+              <Bookmark v-else class="icon" />
+              <span>{{ isCollected(post.id) ? '已收藏' : '收藏' }}</span>
+            </button>
+          </div>
         </article>
 
         <div v-if="memos.length === 0" class="empty-state">
-          <p>No memories yet. Import your archives to begin.</p>
+          <p>暂无回忆，先导入微博存档。</p>
         </div>
       </section>
 
       <section v-else class="memo-list">
         <article v-for="post in collectionMemos" :key="post.id" class="memo-card">
+          <div v-if="getPostUrl(post)" class="memo-top">
+            <a
+              class="memo-link"
+              :href="getPostUrl(post)"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              打开原微博
+            </a>
+          </div>
           <header class="memo-header">
             <div class="memo-user">
               <img
@@ -307,10 +340,6 @@ onUnmounted(() => {
                 <p class="memo-date">{{ formatDate(post.createdAt) }}</p>
               </div>
             </div>
-            <button class="collect" @click="toggleCollection(post.id)">
-              <BookmarkCheck class="icon" />
-              <span>Collected</span>
-            </button>
           </header>
 
           <WeiboText class="memo-text" :text="post.text" />
@@ -326,10 +355,17 @@ onUnmounted(() => {
               <img :src="getCdnUrl(img)" alt="Weibo image">
             </button>
           </div>
+
+          <div class="memo-footer">
+            <button class="collect" @click="toggleCollection(post.id)">
+              <BookmarkCheck class="icon" />
+              <span>已收藏</span>
+            </button>
+          </div>
         </article>
 
         <div v-if="collectionMemos.length === 0" class="empty-state">
-          <p>No collections yet. Tap Collect on a memo to save it.</p>
+          <p>暂无收藏，点击收藏按钮即可保存。</p>
         </div>
       </section>
     </main>
@@ -337,13 +373,13 @@ onUnmounted(() => {
     <div v-if="preview.open" class="preview">
       <div class="preview-backdrop" @click="closePreview"></div>
       <div class="preview-card">
-        <button class="preview-close" type="button" @click="closePreview">Close</button>
+        <button class="preview-close" type="button" @click="closePreview">关闭</button>
         <button v-if="preview.images.length > 1" class="preview-nav left" type="button" @click="prevPreview">
-          Prev
+          上一张
         </button>
         <img :src="getCdnUrl(preview.images[preview.index])" alt="Preview image">
         <button v-if="preview.images.length > 1" class="preview-nav right" type="button" @click="nextPreview">
-          Next
+          下一张
         </button>
       </div>
     </div>
