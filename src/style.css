@@ -25,14 +25,19 @@
   box-sizing: border-box;
 }
 
+html,
+body {
+  background-color: var(--bg);
+}
+
 body {
   margin: 0;
   min-height: 100vh;
   background:
-    radial-gradient(circle at top left, #fce5b4 0%, transparent 45%),
-    radial-gradient(circle at 20% 20%, #f6c6bf 0%, transparent 40%),
-    radial-gradient(circle at 80% 0%, #cfe8e8 0%, transparent 45%),
-    var(--bg);
+    radial-gradient(circle at top left, #fce5b4 0%, rgba(252, 229, 180, 0) 45%),
+    radial-gradient(circle at 20% 20%, #f6c6bf 0%, rgba(246, 198, 191, 0) 40%),
+    radial-gradient(circle at 80% 0%, #cfe8e8 0%, rgba(207, 232, 232, 0) 45%),
+    linear-gradient(180deg, #f3f0eb 0%, #ece2d5 100%);
   color: var(--ink);
 }
 
@@ -187,6 +192,15 @@ button {
   color: var(--muted);
   font-size: 0.9rem;
   margin: 0;
+}
+
+.hint-link {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.hint-link:hover {
+  text-decoration: underline;
 }
 
 .hero-panel {
@@ -581,4 +595,53 @@ button {
 
 .w-5 {
   width: 20px;
+}
+
+.footer {
+  margin-top: 48px;
+  padding: 40px 0 20px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.footer-top {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.footer-link {
+  color: #6a6f77;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.footer-link:hover {
+  color: var(--accent);
+}
+
+.footer-badge {
+  font-size: 0.7rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  text-transform: uppercase;
+  background: #f2ebe4;
+  padding: 4px 10px;
+  border-radius: 999px;
+  color: #6a6f77;
+}
+
+.footer-meta {
+  margin-top: 16px;
+  font-size: 0.8rem;
+  max-width: 520px;
+  margin-left: auto;
+  margin-right: auto;
+  line-height: 1.6;
+  color: #9aa0a6;
+}
+
+.footer-underline {
+  text-decoration: underline;
+  color: inherit;
 }

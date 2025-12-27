@@ -1,3 +1,7 @@
+/**
+ * Original Copyright 2023-PRESENT Chilfish<https://github.com/Chilfish>
+ * Licensed under the Apache License, Version 2.0
+ */
 import {
   Gem as DiamondIcon,
   Image as ImageIcon,

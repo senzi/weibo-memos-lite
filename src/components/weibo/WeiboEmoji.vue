@@ -1,4 +1,8 @@
 <script setup lang="ts">
+/**
+ * Original Copyright 2023-PRESENT Chilfish<https://github.com/Chilfish>
+ * Licensed under the Apache License, Version 2.0
+ */
 import { computed } from 'vue'
 import { useEmoji } from '@/composables'
 

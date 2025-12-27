@@ -271,6 +271,18 @@ watch([userMode, selectedUserId], async () => {
             <span>{{ isImporting ? '正在导入...' : '导入 JSON' }}</span>
           </label>
           <p class="hint">数据仅保存在本地浏览器（IndexedDB）。</p>
+          <p class="hint">
+            仅兼容
+            <a
+              href="https://github.com/Chilfish/weibo-archiver"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="hint-link"
+            >
+              weibo-archiver
+            </a>
+            的导出格式。
+          </p>
         </div>
       </div>
       <div class="hero-panel">
@@ -454,6 +466,36 @@ watch([userMode, selectedUserId], async () => {
         </div>
       </section>
     </main>
+
+    <footer class="footer">
+      <div class="footer-top">
+        <a
+          href="https://github.com/senzi/weibo-memos-lite"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="footer-link"
+        >
+          senzi/weibo-memos-lite (MIT)
+        </a>
+        <span class="footer-badge">Vibe Coding</span>
+      </div>
+
+      <div class="footer-meta">
+        <p>© 2025 · Built with ❤️</p>
+        <p>
+          Core components inspired by
+          <a
+            href="https://github.com/Chilfish/weibo-archiver"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="footer-underline"
+          >
+            weibo-archiver
+          </a>
+          under Apache-2.0.
+        </p>
+      </div>
+    </footer>
 
     <div v-if="preview.open" class="preview">
       <div class="preview-backdrop" @click="closePreview"></div>
