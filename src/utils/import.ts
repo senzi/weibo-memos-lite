@@ -59,7 +59,11 @@ export async function handleImport(file: File) {
 
   const user = normalizeUser(payload.user)
   if (user) {
-    await db.users.put(user)
+    const existing = await db.users.get(user.uid)
+    await db.users.put({
+      ...user,
+      hidden: existing?.hidden ?? false,
+    })
   }
 
   const posts = (payload.weibo || [])

@@ -248,6 +248,23 @@ button {
   padding: 16px;
 }
 
+.panel-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  border: none;
+  background: none;
+  padding: 0;
+  text-align: left;
+  width: 100%;
+  cursor: pointer;
+}
+
+.panel-button:hover .panel-label,
+.panel-button:hover .panel-value {
+  color: var(--accent);
+}
+
 .panel-label {
   margin: 0;
   color: var(--muted);
@@ -359,6 +376,12 @@ button {
   border-radius: 50%;
   object-fit: cover;
   border: 2px solid #f6e9df;
+}
+
+.avatar.small {
+  width: 36px;
+  height: 36px;
+  border-width: 1px;
 }
 
 .memo-text {
@@ -506,6 +529,94 @@ button {
 
 .preview-nav.right {
   right: 12px;
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  z-index: 12;
+}
+
+.modal-card {
+  position: relative;
+  background: var(--panel);
+  border-radius: 18px;
+  padding: 20px;
+  width: min(560px, 92vw);
+  box-shadow: 0 20px 40px rgba(12, 16, 24, 0.2);
+  z-index: 1;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.modal-close {
+  background: #f7efe7;
+  color: #7b5a4e;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+}
+
+.modal-hint {
+  margin: 8px 0 16px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.user-list {
+  display: grid;
+  gap: 12px;
+  max-height: 360px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.user-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #faf4ee;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.user-name {
+  margin: 0;
+  font-weight: 600;
+}
+
+.user-id {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.user-toggle {
+  background: #fff;
+  border: 1px solid #e6d9cc;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  color: #7b5a4e;
 }
 
 .icon {

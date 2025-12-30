@@ -26,21 +26,28 @@ const noImageMode = ref(false)
 const userMode = ref<'all' | 'single'>('all')
 const selectedUserId = ref('')
 const users = ref<UserRecord[]>([])
+const showUserManager = ref(false)
 
 const todayLabel = computed(() => dayjs().format('MM月DD日'))
 
+const visibleUsers = computed(() => users.value.filter((user) => !user.hidden))
+const hiddenUserIds = computed(() => new Set(users.value.filter((user) => user.hidden).map((user) => user.uid)))
+
 async function refreshStats() {
-  const [users, posts] = await Promise.all([db.users.count(), db.posts.count()])
-  stats.value = { users, posts }
+  const [usersCount, posts] = await Promise.all([
+    db.users.where('hidden').notEqual(true).count(),
+    db.posts.count(),
+  ])
+  stats.value = { users: usersCount, posts }
 }
 
 async function fetchUsers() {
   const list = await db.users.toArray()
   users.value = list
   if (userMode.value === 'single') {
-    const hasSelected = list.some((item) => item.uid === selectedUserId.value)
+    const hasSelected = list.some((item) => item.uid === selectedUserId.value && !item.hidden)
     if (!hasSelected) {
-      selectedUserId.value = list[0]?.uid || ''
+      selectedUserId.value = visibleUsers.value[0]?.uid || ''
     }
   }
 }
@@ -57,6 +64,9 @@ async function fetchTodayMemos() {
         return false
       }
       if (date.format('MM-DD') !== todayKey || date.year() >= today.year()) {
+        return false
+      }
+      if (hiddenUserIds.value.has(post.userId)) {
         return false
       }
       if (filterUserId && post.userId !== filterUserId) {
@@ -86,6 +96,7 @@ async function fetchCollections() {
   }
   const posts = await db.posts.bulkGet([...ids])
   collectionMemos.value = posts.filter((post): post is PostRecord => Boolean(post))
+    .filter((post) => !hiddenUserIds.value.has(post.userId))
 }
 
 async function refreshAll() {
@@ -119,7 +130,7 @@ async function handleFileChange(event: Event) {
 
   await refreshAll()
   if (userMode.value === 'single' && !selectedUserId.value) {
-    selectedUserId.value = users.value[0]?.uid || ''
+    selectedUserId.value = visibleUsers.value[0]?.uid || ''
   }
   if (!hadError) {
     importStatus.value = `已导入 ${totalUsers} 个用户，${totalPosts} 条微博。`
@@ -137,6 +148,15 @@ async function toggleCollection(postId: string) {
     await db.collections.put({ postId, addedAt: Date.now() })
   }
   await fetchCollections()
+}
+
+async function toggleUserHidden(uid: string) {
+  const existing = await db.users.get(uid)
+  if (!existing) {
+    return
+  }
+  await db.users.put({ ...existing, hidden: !existing.hidden })
+  await refreshAll()
 }
 
 function isCollected(postId: string) {
@@ -253,7 +273,7 @@ watch([userMode, selectedUserId], async () => {
             </select>
             <select v-if="userMode === 'single'" v-model="selectedUserId" class="select">
               <option value="" disabled>选择用户</option>
-              <option v-for="user in users" :key="user.uid" :value="user.uid">
+              <option v-for="user in visibleUsers" :key="user.uid" :value="user.uid">
                 {{ user.name }}
               </option>
             </select>
@@ -296,11 +316,13 @@ watch([userMode, selectedUserId], async () => {
         </div>
         <div class="panel-grid">
           <div class="panel mini">
-            <Users class="icon muted" />
-            <div>
-              <p class="panel-label">用户数</p>
-              <p class="panel-value">{{ stats.users }}</p>
-            </div>
+            <button class="panel-button" type="button" @click="showUserManager = true">
+              <Users class="icon muted" />
+              <div>
+                <p class="panel-label">用户数</p>
+                <p class="panel-value">{{ stats.users }}</p>
+              </div>
+            </button>
           </div>
           <div class="panel mini">
             <Database class="icon muted" />
@@ -508,6 +530,31 @@ watch([userMode, selectedUserId], async () => {
         <button v-if="preview.images.length > 1" class="preview-nav right" type="button" @click="nextPreview">
           下一张
         </button>
+      </div>
+    </div>
+
+    <div v-if="showUserManager" class="modal">
+      <div class="preview-backdrop" @click="showUserManager = false"></div>
+      <div class="modal-card">
+        <div class="modal-header">
+          <h2>管理用户</h2>
+          <button type="button" class="modal-close" @click="showUserManager = false">关闭</button>
+        </div>
+        <p class="modal-hint">隐藏的用户不会出现在首页，也无法被筛选。</p>
+        <div class="user-list">
+          <div v-for="user in users" :key="user.uid" class="user-item">
+            <div class="user-info">
+              <img class="avatar small" :src="getCdnUrl(user.avatar)" :alt="user.name">
+              <div>
+                <p class="user-name">{{ user.name }}</p>
+                <p class="user-id">UID: {{ user.uid }}</p>
+              </div>
+            </div>
+            <button class="user-toggle" type="button" @click="toggleUserHidden(user.uid)">
+              {{ user.hidden ? '显示' : '隐藏' }}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   </div>

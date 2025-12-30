@@ -4,6 +4,7 @@ export type UserRecord = {
   uid: string
   name: string
   avatar: string
+  hidden?: boolean
 }
 
 export type PostRecord = {
@@ -32,6 +33,11 @@ export class MemosDB extends Dexie {
     this.version(1).stores({
       posts: 'id, userId, createdAt',
       users: 'uid',
+      collections: 'postId, addedAt',
+    })
+    this.version(2).stores({
+      posts: 'id, userId, createdAt',
+      users: 'uid, hidden',
       collections: 'postId, addedAt',
     })
   }
